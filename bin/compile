@@ -50,7 +50,7 @@ echo "done"
 
 echo -n "-----> Configuring $SODIUM_DIR... "
 cd $SODIUM_DIR
-./configure --silent --disable-debug --disable-dependency-tracking --prefix=$INSTALL_DIR
+CFLAGS="-fPIC" ./configure --silent --disable-debug --disable-dependency-tracking --prefix=$INSTALL_DIR
 echo "done"
 
 echo -n "-----> Compiling $SODIUM_DIR... "
