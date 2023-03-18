@@ -1,52 +1,40 @@
-#!/usr/bin/env bash
-# bin/compile <build-dir> <cache-dir> <env-dir>
+#!/bin/sh
 
-### Configure Environment
+BUILD_DIR=$1
+CACHE_DIR=$2
 
-set -eo pipefail
+echo "-----> Installing libsodium-dev and pkgconf"
+apt-get update
+apt-get install -y libsodium-dev pkgconf
 
-### Constants
+echo "-----> Installing libopaque"
 
-### Paths
+LIBOPAQUE_GIT_REPO="https://github.com/stef/libopaque.git"
 
-BASE_DIR=$PWD # absolute path
-BUILD_DIR=${1:-}
-CACHE_DIR=${2:-}
-ENV_DIR=${3:-}
-INSTALL_DIR="$BUILD_DIR/vendor/libopaque"
+# Clone the repository
+if [ ! -d "${CACHE_DIR}/libopaque" ]; then
+  git clone "${LIBOPAQUE_GIT_REPO}" "${CACHE_DIR}/libopaque"
+fi
 
-mkdir -p $CACHE_DIR
-mkdir -p $INSTALL_DIR
+# Update the repository to the latest version and init submodules
+cd "${CACHE_DIR}/libopaque"
+git fetch origin
+git reset --hard origin/master
+git submodule update --init --recursive --remote
 
-export_env_dir() {
-  local env_dir=$1
-  if [ -d "$env_dir" ]; then
-    local whitelist_regex=${2:-''}
-    local blacklist_regex=${3:-'^(PATH|GIT_DIR|CPATH|CPPATH|LD_PRELOAD|LIBRARY_PATH)$'}
-    if [ -d "$env_dir" ]; then
-      for e in $(ls $env_dir); do
-        echo "$e" | grep -E "$whitelist_regex" | grep -qvE "$blacklist_regex" &&
-        export "$e=$(cat $env_dir/$e)"
-        :
-      done
-    fi
-  fi
-}
-export_env_dir "$ENV_DIR"
+# Compile the library
+cd src
+make
 
-OPAQUE_DIR=libopaque-master
-TARBALL=master.tar.gz
+# Copy the compiled library and headers to the vendor folder
+mkdir -p "${BUILD_DIR}/.heroku/vendor/lib"
+mkdir -p "${BUILD_DIR}/.heroku/vendor/include"
+cp *.a "${BUILD_DIR}/.heroku/vendor/lib"
+cp *.h "${BUILD_DIR}/.heroku/vendor/include"
 
-cd $CACHE_DIR
-echo -n "-----> Fetching $OPAQUE_DIR... "
-curl --silent --remote-name --insecure --location https://github.com/stef/libopaque/archive/refs/heads/master.tar.gz
-tar -xf $TARBALL
-rm $TARBALL
-echo "done"
+# Set the necessary environment variables
+export LDFLAGS="-L${BUILD_DIR}/.heroku/vendor/lib ${LDFLAGS}"
+export CPPFLAGS="-I${BUILD_DIR}/.heroku/vendor/include ${CPPFLAGS}"
+export LD_LIBRARY_PATH="${BUILD_DIR}/.heroku/vendor/lib:${LD_LIBRARY_PATH}"
 
-echo -n "-----> Compiling $OPAQUE_DIR... "
-echo -n "-----> About to change directory... "
-cd "$OPAQUE_DIR/src"
-echo -n "-----> About to make... "
-make &> /dev/null
-echo "done"
+echo "-----> libopaque installed"
