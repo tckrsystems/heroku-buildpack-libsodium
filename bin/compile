@@ -39,6 +39,8 @@ export_env_dir() {
 }
 export_env_dir "$ENV_DIR"
 
+export CFLAGS="-fPIC"
+
 ### Compile
 
 cd $CACHE_DIR
